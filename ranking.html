@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>BGMI Live Ranking</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: Arial, sans-serif;
+      background: transparent;
+      color: white;
+    }
+    .header {
+      background: #007bff;
+      color: white;
+      padding: 10px;
+      font-size: 22px;
+      font-weight: bold;
+      text-align: center;
+    }
+    table {
+      border-collapse: collapse;
+      width: 760px;
+      font-size: 16px;
+      text-align: center;
+    }
+    thead tr {
+      background: #111;
+      color: #fff;
+    }
+    th, td {
+      padding: 8px;
+    }
+    tbody tr:nth-child(odd) {
+      background: #2b2b2b;
+    }
+    tbody tr:nth-child(even) {
+      background: #1f1f1f;
+    }
+    .rank {
+      font-weight: bold;
+      color: #fff;
+      width: 50px;
+    }
+    .team-cell {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .team-logo {
+      width: 28px;
+      height: 28px;
+      object-fit: contain;
+    }
+    .alive-dot {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      margin: 0 2px;
+    }
+    .alive { background: white; }
+    .knocked { background: red; }
+    .dead { background: black; }
+  </style>
+</head>
+<body>
+  <div class="header">LIVE RANKING</div>
+  <table id="ranking">
+    <thead>
+      <tr>
+        <th>Rank</th>
+        <th>Team</th>
+        <th>Points</th>
+        <th>Alive</th>
+        <th>Elims</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script>
+    const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTLEcsrarCg0wuKsytxxEnP2akevbA3SbGLnlP6TGTuKGYzj8ySPypNWWSAv8T-efKDnSMTNrnXGo0q/gviz/tq?tqx=out:json";
+
+    function parseGVizJSON(text) {
+      const jsonStr = text.match(/google.visualization.Query.setResponse\((.*)\);/s)[1];
+      return JSON.parse(jsonStr);
+    }
+
+    async function loadData() {
+      try {
+        const res = await fetch(SHEET_URL);
+        const text = await res.text();
+        const data = parseGVizJSON(text);
+        const rows = data.table.rows.map(r => r.c.map(c => (c ? c.v : "")));
+
+        let teams = rows.map(r => ({
+          logo: r[0],
+          team: r[1],
+          points: parseInt(r[2]) || 0,
+          players: [r[3], r[4], r[5], r[6]].map(x => parseInt(x) || 0),
+          elims: parseInt(r[7]) || 0
+        }));
+
+        // Sort: Points desc, Elims desc, Team asc
+        teams.sort((a, b) => b.points - a.points || b.elims - a.elims || a.team.localeCompare(b.team));
+
+        const tbody = document.querySelector("#ranking tbody");
+        tbody.innerHTML = "";
+
+        teams.slice(0, 10).forEach((t, i) => {
+          const tr = document.createElement("tr");
+          const aliveCircles = t.players.map(p => `<span class="alive-dot ${p===1?'alive':p===2?'knocked':'dead'}"></span>`).join("");
+          tr.innerHTML = `
+            <td class="rank">#${i+1}</td>
+            <td class="team-cell"><img src="${t.logo}" class="team-logo"/> ${t.team}</td>
+            <td>${t.points}</td>
+            <td>${aliveCircles}</td>
+            <td>${t.elims}</td>
+          `;
+          tbody.appendChild(tr);
+        });
+      } catch (err) {
+        console.error("Error loading data", err);
+      }
+    }
+
+    setInterval(loadData, 2000);
+    loadData();
+  </script>
+</body>
+</html>
